@@ -1,4 +1,7 @@
 #  Easy Featured Products For Opencart 3.x
+![Screenshot](screen-1.png)
+![Screenshot](screen-2.png)
+
 If you want to add your products to featured modules list, you can install this modification just a second.
 
 # INSTALLATION
