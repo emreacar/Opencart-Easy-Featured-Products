@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="utf-8"?>
+<modification>
+    <code>1</code>
+    <name>Opencart Easy Featured</name>
+    <version>0.1</version>
+    <author>EMRE ACAR</author>
+    <link>http://www.emreacar.com.tr</link>
+
+    <file path="admin/controller/catalog/product.php">
+        <operation>
+            <search><![CDATA[
+            $this->response->setOutput($this->load->view('catalog/product_list', $data));
+            ]]></search>
+            <add position="before"><![CDATA[
+            $this->load->model('setting/module');
+            $data['featuredProducts'] = array("ids" => array(), "p2m" => array());
+            $data['featuredModules'] = $this->model_setting_module->getModulesByCode('featured');
+            foreach((array) $data['featuredModules'] as $key => $value) {
+              $module_id = $value['module_id'];
+              $module_setting = json_decode($value['setting'], TRUE);
+              $data['featuredProducts']['ids'] = array_merge($data['featuredProducts']['ids'],$module_setting['product']);
+              foreach((array) $module_setting['product'] as $p) {$data['featuredProducts']['p2m'][$p] = $module_id;}
+
+            }
+            ]]></add>
+        </operation>
+
+        <operation>
+          <search><![CDATA[
+          protected function getList() {
+          ]]></search>
+          <add position="before"><![CDATA[
+            public function removeFeatured() {
+            $return = array();
+            $data = explode('-',$this->request->get['featured_data']);
+            $product_id = $data[0];
+            $module_id = $data[1];
+            if($product_id > 0 && $module_id > 0) {
+            $query = $this->db->query("SELECT * FROM `" . DB_PREFIX . "module` WHERE `module_id` = '" . (int)$module_id . "'");
+            if ($query->row) {
+              $module =  json_decode($query->row['setting'], true);
+              $remove_product = array_diff($module['product'], array($product_id));
+              $module['product'] = $remove_product;
+              $this->db->query("UPDATE `" . DB_PREFIX . "module` SET `setting` = '" . $this->db->escape(json_encode($module)) . "' WHERE `module_id` = '" . (int)$module_id . "'");
+              $return['status'] = 'ok';
+            } else {
+              $return['status'] = 'no'; $return['message'] = 'Database Query Failed.';
+            }
+            }else{ $return['status'] = 'no'; $return['message'] = 'Product or Module could not set. Please refresh your page and try again.'; }
+            echo json_encode($return, JSON_UNESCAPED_UNICODE);
+            }
+            public function setFeatured() {
+              $return = array();
+              $data = explode('-',$this->request->get['featured_data']);
+              $product_id = $data[0];
+              $module_id = $data[1];
+
+              if($product_id > 0 && $module_id > 0) {
+                $query = $this->db->query("SELECT * FROM `" . DB_PREFIX . "module` WHERE `module_id` = '" . (int)$module_id . "'");
+                if ($query->row) {
+            			$module =  json_decode($query->row['setting'], true);
+                  $module['product'][] = $product_id;
+                  $this->db->query("UPDATE `" . DB_PREFIX . "module` SET `setting` = '" . $this->db->escape(json_encode($module)) . "' WHERE `module_id` = '" . (int)$module_id . "'");
+                  $return['status'] = 'ok';
+            		} else {
+            			$return['status'] = 'no'; $return['message'] = 'Database Query Failed.';
+            		}
+
+              }else{ $return['status'] = 'no'; $return['message'] = 'Product or Module could not set. Please refresh your page and try again.'; }
+              echo json_encode($return, JSON_UNESCAPED_UNICODE);
+            }
+          ]]></add>
+        </operation>
+    </file>
+
+
+    <file path="admin/view/template/catalog/product_list.twig">
+        <operation>
+            <search><![CDATA[
+            <td class="text-center">{{ column_image }}</td>
+            ]]></search>
+            <add position="after"><![CDATA[
+            <td class="text-center"><i class="fa fa-star"></i></td>
+            ]]></add>
+        </operation>
+
+        <operation>
+            <search><![CDATA[
+            <td class="text-left">{{ product.name }}</td>
+            ]]></search>
+            <add position="before"><![CDATA[
+            <td class="text-center">
+              {% if product.product_id in featuredProducts.ids %}
+                <a class="btn btn-warning removeFeatured" data-id="{{product.product_id}}-{{featuredProducts.p2m[product.product_id]}}"><i class="fa fa-star"></i></a>
+              {% else %}
+                <div class="btn-group">
+                <button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"><i class="fa fa-star"></i></button>
+                <ul class="dropdown-menu">
+                  {% for fm in featuredModules %}
+                  <li><a data-id="{{product.product_id}}-{{fm.module_id}}" class="setFeatured">{{fm.name}}</a></li>
+                  {% endfor %}
+                </ul>
+                </div>
+              {% endif %}
+            </td>
+            ]]></add>
+        </operation>
+
+        <operation>
+            <search><![CDATA[
+            $('#button-filter').on('click', function() {
+            ]]></search>
+            <add position="before"><![CDATA[
+            $('.removeFeatured').on('click', function() {
+                var checkConfirm = confirm('Are you sure remove this product from featured list ?');
+                var data = $(this).data('id');
+                if(checkConfirm) {
+                  $.ajax({
+                    url: 'index.php?route=catalog/product/removeFeatured&user_token={{ user_token }}&featured_data=' +  data,
+                    dataType: 'json',
+                    success: function(json) { if(json.status == 'ok') {window.location.reload();}else{alert(json.message);} }
+                  });
+                }
+            });
+
+            $('.setFeatured').on('click', function() {
+              var data = $(this).data('id');
+              $.ajax({
+          			url: 'index.php?route=catalog/product/setFeatured&user_token={{ user_token }}&featured_data=' +  data,
+          			dataType: 'json',
+          			success: function(json) { if(json.status == 'ok') {window.location.reload();}else{alert(json.message);} }
+          		});
+            });
+            ]]></add>
+        </operation>
+    </file>
+</modification>
